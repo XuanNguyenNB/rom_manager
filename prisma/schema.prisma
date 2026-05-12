@@ -1,0 +1,195 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum FileType {
+  ROM
+  TOOL
+  DRIVER
+  PATCH
+  GUIDE
+  BUNDLE
+  OTHER
+}
+
+enum FileStatus {
+  UNCLASSIFIED
+  TESTED
+  UNTESTED
+  BAD
+  ARCHIVED
+  MISSING
+}
+
+enum ScriptLanguage {
+  VI
+  EN
+}
+
+enum ScriptStage {
+  QUOTE
+  WARNING
+  BACKUP
+  DOWNLOADING
+  ERROR
+  DONE
+  SUPPORT
+  OTHER
+}
+
+enum DownloadLinkKind {
+  FILE
+  PACKAGE
+}
+
+enum AuditAction {
+  FILE_SCAN
+  LINK_CREATED
+  LINK_REVOKED
+  LINK_DOWNLOADED
+  SAFE_CREATED
+  SAFE_LOGIN
+  SCRIPT_IMPORTED
+  METADATA_UPDATED
+}
+
+model Device {
+  id        String   @id @default(cuid())
+  brand     String
+  model     String
+  aliases   String[] @default([])
+  codename  String?
+  chipset   String?
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  files   RomFile[]
+  scripts ScriptTemplate[]
+
+  @@unique([brand, model])
+  @@index([brand])
+}
+
+model RomFile {
+  id             String     @id @default(cuid())
+  alistPath      String     @unique
+  filename       String
+  sizeBytes      BigInt?
+  modifiedAt     DateTime?
+  brand          String?
+  model          String?
+  deviceId       String?
+  region         String?
+  androidVersion String?
+  buildNumber    String?
+  fileType       FileType   @default(OTHER)
+  status         FileStatus @default(UNCLASSIFIED)
+  tags           String[]   @default([])
+  note           String?
+  checksum       String?
+  missingAt      DateTime?
+  lastSeenAt     DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  device Device?            @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  links  DownloadLinkFile[]
+
+  @@index([brand, model])
+  @@index([fileType])
+  @@index([status])
+}
+
+model ScriptTemplate {
+  id        String         @id @default(cuid())
+  title     String
+  language  ScriptLanguage @default(VI)
+  brand     String?
+  model     String?
+  deviceId  String?
+  stage     ScriptStage    @default(OTHER)
+  body      String
+  variables String[]       @default([])
+  tags      String[]       @default([])
+  active    Boolean        @default(true)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  device Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([brand, model])
+  @@index([language])
+  @@index([stage])
+}
+
+model DownloadLink {
+  id            String           @id @default(cuid())
+  tokenHash     String           @unique
+  kind          DownloadLinkKind
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  downloadCount Int              @default(0)
+  note          String?
+  createdBy     String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  files DownloadLinkFile[]
+  logs  AuditLog[]
+
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
+
+model DownloadLinkFile {
+  linkId String
+  fileId String
+  order  Int    @default(0)
+
+  link DownloadLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  file RomFile      @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@id([linkId, fileId])
+  @@index([fileId])
+}
+
+model SafeSession {
+  id          String    @id @default(cuid())
+  codeHash    String    @unique
+  tokenHash   String?   @unique
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  activatedAt DateTime?
+  lastSeenAt  DateTime?
+  createdBy   String?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
+
+model AuditLog {
+  id        String      @id @default(cuid())
+  action    AuditAction
+  actorType String
+  actorEmail String?
+  entityType String?
+  entityId   String?
+  linkId     String?
+  ip         String?
+  metadata   Json?
+  createdAt  DateTime   @default(now())
+
+  link DownloadLink? @relation(fields: [linkId], references: [id], onDelete: SetNull)
+
+  @@index([action])
+  @@index([createdAt])
+}
