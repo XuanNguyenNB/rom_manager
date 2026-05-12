@@ -29,7 +29,7 @@ services:
       - PUID=0
       - PGID=0
       - UMASK=022
-      - SITE_URL=https://files.choimaytau.com/_alist
+      - ALIST_SITE_URL=https://files.choimaytau.com/_alist
     volumes:
       - alist_data:/opt/alist/data
     ports:
