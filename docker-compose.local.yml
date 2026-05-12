@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: rom_manager
+      POSTGRES_USER: rom_manager
+      POSTGRES_PASSWORD: rom_manager
+    volumes:
+      - postgres_local_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"
+
+  alist:
+    image: xhofe/alist:latest
+    restart: unless-stopped
+    environment:
+      - PUID=0
+      - PGID=0
+      - UMASK=022
+      - ALIST_SITE_URL=http://localhost:5244
+    volumes:
+      - alist_local_data:/opt/alist/data
+      - ./local/alist-sample:/local-rom-library:ro
+    ports:
+      - "127.0.0.1:5244:5244"
+
+volumes:
+  postgres_local_data:
+  alist_local_data:

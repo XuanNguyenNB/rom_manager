@@ -9,13 +9,16 @@ Personal web app for ROM freelancers: catalog ROM/tool files from AList/Google D
 ## Local Development
 
 ```bash
-cp .env.example .env
+cp .env.local.example .env.local
 npm install
 npm run db:generate
+npm run local:services
+npm run local:alist:password
+npm run local:db
 npm run dev
 ```
 
-Local development automatically bypasses Google login when OAuth env vars are empty. Production does not.
+Local development uses Docker for PostgreSQL and AList, then runs Next.js directly on `http://localhost:3000`. See `docs/local-development.md` for the full workflow. The project context and deployment decisions are recorded in `docs/project-context.md`.
 
 ## Database
 
