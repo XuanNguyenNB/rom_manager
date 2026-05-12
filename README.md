@@ -53,7 +53,7 @@ ALIST_PASSWORD=...
 ALIST_SCAN_ROOT=/ROM-Library
 ```
 
-`/_raw/d/...` is the public download-only route used after the app validates `/d/<token>`. Keep `/_alist` protected with Basic Auth or IP allowlist. When AList is exposed below `/_alist/`, set AList `site_url` to `https://files.choimaytau.com/_alist`.
+`/_raw/d/...` is the public download-only route used after the app validates `/d/<token>`. AList is exposed below `/_alist/` with its native login, so set AList `site_url` to `https://files.choimaytau.com/_alist`. Do not wrap this subpath with Nginx Basic Auth because the AList single-page app can repeatedly prompt for login when its API/static fetches are challenged by the proxy. If an extra perimeter is needed, put AList behind Cloudflare Access or a dedicated admin-only hostname.
 
 ## VPS Deployment
 
