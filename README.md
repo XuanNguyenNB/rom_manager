@@ -2,6 +2,10 @@
 
 Personal web app for ROM freelancers: catalog ROM/tool files from AList/Google Drive, search customer scripts, generate 7-day download links, and open a restricted Safe Mode on customer machines.
 
+- Customer/Safe Mode: `/`
+- Admin dashboard: `/admin`
+- Admin login: `/login`
+
 ## Local Development
 
 ```bash
@@ -80,6 +84,7 @@ NEXTAUTH_SECRET=<random secret>
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 ADMIN_EMAILS=your-email@gmail.com
+ADMIN_PASSWORD=<strong admin password>
 ```
 
 ## Import Scripts

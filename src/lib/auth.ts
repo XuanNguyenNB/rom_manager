@@ -1,11 +1,49 @@
 import { getServerSession, type NextAuthOptions } from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { env, isGoogleAuthConfigured } from "@/lib/env";
+import { safeCompare, sha256 } from "@/lib/security";
 
 export type Actor = {
   type: "admin" | "safe";
   email?: string;
 };
+
+const providers: NextAuthOptions["providers"] = [
+  CredentialsProvider({
+    name: "Admin password",
+    credentials: {
+      email: { label: "Email", type: "email" },
+      password: { label: "Password", type: "password" },
+    },
+    async authorize(credentials) {
+      const email = credentials?.email?.toLowerCase().trim();
+      const password = credentials?.password ?? "";
+
+      if (!email || !env.adminPassword || env.adminEmails.length === 0) {
+        return null;
+      }
+
+      const emailAllowed = env.adminEmails.includes(email);
+      const passwordMatches = safeCompare(sha256(password), sha256(env.adminPassword));
+
+      if (!emailAllowed || !passwordMatches) {
+        return null;
+      }
+
+      return { id: email, email };
+    },
+  }),
+];
+
+if (isGoogleAuthConfigured()) {
+  providers.push(
+    GoogleProvider({
+      clientId: env.googleClientId,
+      clientSecret: env.googleClientSecret,
+    }),
+  );
+}
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -16,15 +54,10 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
     error: "/login",
   },
-  providers: [
-    GoogleProvider({
-      clientId: env.googleClientId || "missing-client-id",
-      clientSecret: env.googleClientSecret || "missing-client-secret",
-    }),
-  ],
+  providers,
   callbacks: {
-    async signIn({ profile }) {
-      const email = profile?.email?.toLowerCase();
+    async signIn({ profile, user }) {
+      const email = (user.email ?? profile?.email)?.toLowerCase();
 
       if (!email) {
         return false;
@@ -47,12 +80,11 @@ export const authOptions: NextAuthOptions = {
 };
 
 export async function getAdminActor(): Promise<Actor | null> {
-  if (env.devAuthBypass || (process.env.NODE_ENV !== "production" && !isGoogleAuthConfigured())) {
+  if (
+    env.devAuthBypass ||
+    (process.env.NODE_ENV !== "production" && !isGoogleAuthConfigured() && !env.adminPassword)
+  ) {
     return { type: "admin", email: "dev@local" };
-  }
-
-  if (!isGoogleAuthConfigured()) {
-    return null;
   }
 
   const session = await getServerSession(authOptions);

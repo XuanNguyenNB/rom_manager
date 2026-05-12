@@ -275,7 +275,7 @@ export function DashboardClient({
           <div className="flex flex-wrap items-center gap-2">
             <a
               className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-zinc-300 bg-white px-3 text-sm hover:bg-zinc-50"
-              href="/safe"
+              href="/"
               target="_blank"
             >
               <Lock className="h-4 w-4" />

@@ -5,6 +5,7 @@ export const env = {
     .split(",")
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean),
+  adminPassword: process.env.ADMIN_PASSWORD ?? "",
   devAuthBypass: process.env.DEV_AUTH_BYPASS === "true",
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
