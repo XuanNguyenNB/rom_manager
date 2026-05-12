@@ -53,7 +53,7 @@ ALIST_PASSWORD=...
 ALIST_SCAN_ROOT=/ROM-Library
 ```
 
-`/_raw/d/...` is the public download-only route used after the app validates `/d/<token>`. Keep `/_alist` protected with Basic Auth or IP allowlist.
+`/_raw/d/...` is the public download-only route used after the app validates `/d/<token>`. Keep `/_alist` protected with Basic Auth or IP allowlist. When AList is exposed below `/_alist/`, set AList `site_url` to `https://files.choimaytau.com/_alist`.
 
 ## VPS Deployment
 
