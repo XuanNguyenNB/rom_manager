@@ -2,7 +2,7 @@
 
 Personal web app for ROM freelancers: catalog ROM/tool files from AList/Google Drive, search customer scripts, generate 7-day download links, and open a restricted Safe Mode on customer machines.
 
-- Customer/Safe Mode: `/`
+- Customer lookup: `/`
 - Admin dashboard: `/admin`
 - Admin login: `/login`
 
