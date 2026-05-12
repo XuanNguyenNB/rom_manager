@@ -176,7 +176,8 @@ export function DashboardClient({
     setMessage("Đang quét AList...");
     const response = await fetch("/api/alist/rescan", { method: "POST" });
     if (!response.ok) {
-      setMessage("Quét AList thất bại. Kiểm tra ALIST_* env và token.");
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      setMessage(`Quét AList thất bại: ${data?.error ?? "kiểm tra ALIST_* env và token."}`);
       return;
     }
 

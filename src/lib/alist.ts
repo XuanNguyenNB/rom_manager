@@ -52,6 +52,21 @@ function encodeAListPath(path: string) {
     .join("/");
 }
 
+async function parseAListResponse<T>(response: Response, context: string) {
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`${context} failed with status ${response.status}.`);
+  }
+
+  try {
+    return JSON.parse(text) as AListResponse<T>;
+  } catch {
+    const preview = text.trim().slice(0, 80);
+    throw new Error(`${context} returned non-JSON response. Check ALIST_INTERNAL_URL/base path. Preview: ${preview}`);
+  }
+}
+
 async function getAListToken() {
   if (cachedToken) {
     return cachedToken;
@@ -71,11 +86,7 @@ async function getAListToken() {
     cache: "no-store",
   });
 
-  if (!response.ok) {
-    throw new Error(`AList login failed with status ${response.status}.`);
-  }
-
-  const payload = (await response.json()) as AListResponse<AListLoginData>;
+  const payload = await parseAListResponse<AListLoginData>(response, "AList login");
   if (!payload.data?.token) {
     throw new Error(`AList login failed: ${payload.message}`);
   }
@@ -96,11 +107,7 @@ async function alistPost<T>(endpoint: string, body: Record<string, unknown>) {
     cache: "no-store",
   });
 
-  if (!response.ok) {
-    throw new Error(`AList request ${endpoint} failed with status ${response.status}.`);
-  }
-
-  const payload = (await response.json()) as AListResponse<T>;
+  const payload = await parseAListResponse<T>(response, `AList request ${endpoint}`);
   if (payload.code !== 200) {
     throw new Error(`AList request ${endpoint} failed: ${payload.message}`);
   }
