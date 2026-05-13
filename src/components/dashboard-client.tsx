@@ -2,16 +2,13 @@
 
 import { useMemo, useState, useTransition } from "react";
 import {
-  Copy,
   Download,
   FileSearch,
   FolderSync,
-  KeyRound,
   Link2,
   Lock,
   Save,
   Search,
-  ShieldCheck,
   Smartphone,
   Trash2,
 } from "lucide-react";
@@ -45,18 +42,6 @@ export type FileDto = {
   updatedAt: string;
 };
 
-export type ScriptDto = {
-  id: string;
-  title: string;
-  language: "VI" | "EN";
-  brand: string | null;
-  model: string | null;
-  stage: string;
-  body: string;
-  variables: string[];
-  tags: string[];
-};
-
 export type LinkDto = {
   id: string;
   kind: string;
@@ -72,46 +57,31 @@ type DashboardProps = {
   dbReady: boolean;
   initialDevices: DeviceDto[];
   initialFiles: FileDto[];
-  initialScripts: ScriptDto[];
   initialLinks: LinkDto[];
 };
 
 const tabs = [
   { id: "files", label: "Files", icon: FileSearch },
-  { id: "scripts", label: "Kịch bản", icon: Copy },
-  { id: "links", label: "Link", icon: Link2 },
-  { id: "safe", label: "Safe", icon: ShieldCheck },
+  { id: "links", label: "Links", icon: Link2 },
 ] as const;
 
 const fileTypes = ["ROM", "TOOL", "DRIVER", "PATCH", "GUIDE", "BUNDLE", "OTHER"];
 const statuses = ["UNCLASSIFIED", "TESTED", "UNTESTED", "BAD", "ARCHIVED", "MISSING"];
-const stages = ["QUOTE", "WARNING", "BACKUP", "DOWNLOADING", "ERROR", "DONE", "SUPPORT", "OTHER"];
 
 export function DashboardClient({
   actorEmail,
   dbReady,
   initialDevices,
   initialFiles,
-  initialScripts,
   initialLinks,
 }: DashboardProps) {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["id"]>("files");
   const [query, setQuery] = useState("");
   const [files, setFiles] = useState<FileDto[]>(initialFiles);
-  const [scripts, setScripts] = useState<ScriptDto[]>(initialScripts);
   const [links, setLinks] = useState<LinkDto[]>(initialLinks);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<FileDto | null>(initialFiles[0] ?? null);
   const [message, setMessage] = useState("");
-  const [safeCode, setSafeCode] = useState("");
-  const [newScript, setNewScript] = useState({
-    title: "",
-    language: "VI" as "VI" | "EN",
-    stage: "OTHER",
-    body: "",
-    tags: "",
-  });
-  const [variables, setVariables] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
 
   const brands = useMemo(
@@ -121,13 +91,15 @@ export function DashboardClient({
 
   const stats = useMemo(() => {
     const totalBytes = files.reduce((total, file) => total + Number(file.sizeBytes ?? 0), 0);
+    const activeLinks = links.filter((link) => !link.revokedAt && new Date(link.expiresAt) > new Date()).length;
+
     return {
       files: files.length,
-      scripts: scripts.length,
       selected: selectedIds.length,
+      activeLinks,
       totalSize: formatBytes(totalBytes),
     };
-  }, [files, scripts, selectedIds]);
+  }, [files, links, selectedIds]);
 
   function setSelected(id: string, checked: boolean) {
     setSelectedIds((current) =>
@@ -143,11 +115,14 @@ export function DashboardClient({
       return;
     }
 
-    const data = (await response.json()) as { files: FileDto[]; scripts: ScriptDto[] };
+    const data = (await response.json()) as { files: FileDto[] };
     setFiles(data.files);
-    setScripts(data.scripts);
     setSelectedIds([]);
     setSelectedFile(data.files[0] ?? null);
+
+    if (data.files.length === 0) {
+      setMessage("Không tìm thấy file phù hợp.");
+    }
   }
 
   async function createLink(fileIds = selectedIds) {
@@ -163,7 +138,8 @@ export function DashboardClient({
     });
 
     if (!response.ok) {
-      setMessage("Tạo link thất bại. Kiểm tra database và quyền truy cập.");
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      setMessage(`Tạo link thất bại: ${data?.error ?? "kiểm tra database và quyền truy cập."}`);
       return;
     }
 
@@ -198,7 +174,8 @@ export function DashboardClient({
     });
 
     if (!response.ok) {
-      setMessage("Lưu metadata thất bại.");
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      setMessage(`Lưu metadata thất bại: ${data?.error ?? "kiểm tra dữ liệu file."}`);
       return;
     }
 
@@ -206,36 +183,6 @@ export function DashboardClient({
     setFiles((current) => current.map((file) => (file.id === data.file.id ? data.file : file)));
     setSelectedFile(data.file);
     setMessage("Đã lưu metadata file.");
-  }
-
-  async function createScript() {
-    const response = await fetch("/api/scripts", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(newScript),
-    });
-
-    if (!response.ok) {
-      setMessage("Tạo kịch bản thất bại.");
-      return;
-    }
-
-    const data = (await response.json()) as { script: ScriptDto };
-    setScripts((current) => [data.script, ...current]);
-    setNewScript({ title: "", language: "VI", stage: "OTHER", body: "", tags: "" });
-    setMessage("Đã thêm kịch bản.");
-  }
-
-  async function createSafeCode() {
-    const response = await fetch("/api/safe-sessions", { method: "POST" });
-    if (!response.ok) {
-      setMessage("Không tạo được Safe Mode code.");
-      return;
-    }
-
-    const data = (await response.json()) as { code: string; expiresAt: string };
-    setSafeCode(data.code);
-    setMessage(`Safe Mode code hết hạn lúc ${formatDate(data.expiresAt)}.`);
   }
 
   async function revokeLink(id: string) {
@@ -249,15 +196,6 @@ export function DashboardClient({
       current.map((link) => (link.id === id ? { ...link, revokedAt: new Date().toISOString() } : link)),
     );
     setMessage("Đã thu hồi link.");
-  }
-
-  function renderScript(script: ScriptDto) {
-    return script.body.replace(/\{([a-zA-Z0-9_]+)\}/g, (_, key: string) => variables[key] || `{${key}}`);
-  }
-
-  async function copyScript(script: ScriptDto) {
-    await navigator.clipboard.writeText(renderScript(script));
-    setMessage(`Đã copy: ${script.title}`);
   }
 
   return (
@@ -280,7 +218,7 @@ export function DashboardClient({
               target="_blank"
             >
               <Lock className="h-4 w-4" />
-              Safe Mode
+              Public lookup
             </a>
             <button
               className="inline-flex h-9 items-center justify-center rounded-md border border-zinc-300 bg-white px-3 text-sm hover:bg-zinc-50"
@@ -308,8 +246,8 @@ export function DashboardClient({
 
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Metric label="Files" value={stats.files} />
-          <Metric label="Kịch bản" value={stats.scripts} />
           <Metric label="Đã chọn" value={stats.selected} />
+          <Metric label="Link còn hạn" value={stats.activeLinks} />
           <Metric label="Dung lượng kết quả" value={stats.totalSize} />
         </section>
 
@@ -325,7 +263,7 @@ export function DashboardClient({
                     startTransition(runSearch);
                   }
                 }}
-                placeholder="Search model, region, build, tag, script..."
+                placeholder="Search model, region, build, filename, tag..."
                 value={query}
               />
             </div>
@@ -391,26 +329,7 @@ export function DashboardClient({
           />
         ) : null}
 
-        {activeTab === "scripts" ? (
-          <ScriptsPanel
-            copyScript={copyScript}
-            createScript={createScript}
-            newScript={newScript}
-            renderScript={renderScript}
-            scripts={scripts}
-            setNewScript={setNewScript}
-            setVariables={setVariables}
-            variables={variables}
-          />
-        ) : null}
-
-        {activeTab === "links" ? (
-          <LinksPanel links={links} revokeLink={revokeLink} />
-        ) : null}
-
-        {activeTab === "safe" ? (
-          <SafePanel createSafeCode={createSafeCode} safeCode={safeCode} />
-        ) : null}
+        {activeTab === "links" ? <LinksPanel links={links} revokeLink={revokeLink} /> : null}
       </main>
     </div>
   );
@@ -467,6 +386,13 @@ function FilesPanel({
             Rescan AList
           </button>
         </div>
+
+        {files.length === 0 ? (
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 text-sm text-zinc-600">
+            Chưa có file. Hãy cấu hình AList rồi bấm Rescan AList.
+          </div>
+        ) : null}
+
         {files.map((file) => (
           <article
             className={`rounded-lg border bg-white p-4 shadow-sm ${
@@ -482,11 +408,7 @@ function FilesPanel({
                 onChange={(event) => setSelected(file.id, event.target.checked)}
                 type="checkbox"
               />
-              <button
-                className="min-w-0 flex-1 text-left"
-                onClick={() => setSelectedFile(file)}
-                type="button"
-              >
+              <button className="min-w-0 flex-1 text-left" onClick={() => setSelectedFile(file)} type="button">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <h2 className="truncate text-sm font-semibold">{file.filename}</h2>
                   <span className="w-fit rounded-md bg-zinc-100 px-2 py-1 text-xs font-medium text-zinc-700">
@@ -494,8 +416,8 @@ function FilesPanel({
                   </span>
                 </div>
                 <p className="mt-2 text-sm text-zinc-600">
-                  {file.brand ?? "Unknown"} {file.model ?? ""} · {file.fileType} ·{" "}
-                  {formatBytes(file.sizeBytes)} · {file.region ?? "no-region"}
+                  {file.brand ?? "Unknown"} {file.model ?? ""} · {file.fileType} · {formatBytes(file.sizeBytes)} ·{" "}
+                  {file.region ?? "no-region"}
                 </p>
                 <p className="mt-1 truncate text-xs text-zinc-500">{file.alistPath}</p>
               </button>
@@ -527,102 +449,67 @@ function FilesPanel({
         {selectedFile ? (
           <div className="grid gap-3">
             <Readonly label="Filename" value={selectedFile.filename} />
-            <Input label="Brand" value={selectedFile.brand ?? ""} onChange={(value) => setSelectedFileState({ ...selectedFile, brand: value })} />
-            <Input label="Model" value={selectedFile.model ?? ""} onChange={(value) => setSelectedFileState({ ...selectedFile, model: value })} />
-            <Input label="Region" value={selectedFile.region ?? ""} onChange={(value) => setSelectedFileState({ ...selectedFile, region: value })} />
-            <Input label="Android" value={selectedFile.androidVersion ?? ""} onChange={(value) => setSelectedFileState({ ...selectedFile, androidVersion: value })} />
-            <Input label="Build" value={selectedFile.buildNumber ?? ""} onChange={(value) => setSelectedFileState({ ...selectedFile, buildNumber: value })} />
-            <Select label="Type" value={selectedFile.fileType} options={fileTypes} onChange={(value) => setSelectedFileState({ ...selectedFile, fileType: value })} />
-            <Select label="Status" value={selectedFile.status} options={statuses} onChange={(value) => setSelectedFileState({ ...selectedFile, status: value })} />
-            <Input label="Tags" value={selectedFile.tags.join(", ")} onChange={(value) => setSelectedFileState({ ...selectedFile, tags: value.split(",").map((tag) => tag.trim()).filter(Boolean) })} />
-            <Textarea label="Note" value={selectedFile.note ?? ""} onChange={(value) => setSelectedFileState({ ...selectedFile, note: value })} />
+            <Readonly label="AList path" value={selectedFile.alistPath} />
+            <Input
+              label="Brand"
+              value={selectedFile.brand ?? ""}
+              onChange={(value) => setSelectedFileState({ ...selectedFile, brand: value })}
+            />
+            <Input
+              label="Model"
+              value={selectedFile.model ?? ""}
+              onChange={(value) => setSelectedFileState({ ...selectedFile, model: value })}
+            />
+            <Input
+              label="Region"
+              value={selectedFile.region ?? ""}
+              onChange={(value) => setSelectedFileState({ ...selectedFile, region: value })}
+            />
+            <Input
+              label="Android"
+              value={selectedFile.androidVersion ?? ""}
+              onChange={(value) => setSelectedFileState({ ...selectedFile, androidVersion: value })}
+            />
+            <Input
+              label="Build"
+              value={selectedFile.buildNumber ?? ""}
+              onChange={(value) => setSelectedFileState({ ...selectedFile, buildNumber: value })}
+            />
+            <Select
+              label="Type"
+              value={selectedFile.fileType}
+              options={fileTypes}
+              onChange={(value) => setSelectedFileState({ ...selectedFile, fileType: value })}
+            />
+            <Select
+              label="Status"
+              value={selectedFile.status}
+              options={statuses}
+              onChange={(value) => setSelectedFileState({ ...selectedFile, status: value })}
+            />
+            <Input
+              label="Tags"
+              value={selectedFile.tags.join(", ")}
+              onChange={(value) =>
+                setSelectedFileState({
+                  ...selectedFile,
+                  tags: value
+                    .split(",")
+                    .map((tag) => tag.trim())
+                    .filter(Boolean),
+                })
+              }
+            />
+            <Textarea
+              label="Note"
+              value={selectedFile.note ?? ""}
+              onChange={(value) => setSelectedFileState({ ...selectedFile, note: value })}
+            />
           </div>
         ) : (
           <p className="text-sm text-zinc-600">Chọn một file để sửa metadata.</p>
         )}
       </aside>
-    </section>
-  );
-}
-
-function ScriptsPanel({
-  scripts,
-  variables,
-  setVariables,
-  renderScript,
-  copyScript,
-  newScript,
-  setNewScript,
-  createScript,
-}: {
-  scripts: ScriptDto[];
-  variables: Record<string, string>;
-  setVariables: (value: Record<string, string>) => void;
-  renderScript: (script: ScriptDto) => string;
-  copyScript: (script: ScriptDto) => void;
-  newScript: { title: string; language: "VI" | "EN"; stage: string; body: string; tags: string };
-  setNewScript: (value: { title: string; language: "VI" | "EN"; stage: string; body: string; tags: string }) => void;
-  createScript: () => void;
-}) {
-  const allVariables = Array.from(new Set(scripts.flatMap((script) => script.variables))).slice(0, 10);
-
-  return (
-    <section className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-      <aside className="h-fit rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
-        <h2 className="mb-3 font-semibold">Biến kịch bản</h2>
-        <div className="grid gap-3">
-          {allVariables.map((name) => (
-            <Input
-              key={name}
-              label={name}
-              onChange={(value) => setVariables({ ...variables, [name]: value })}
-              value={variables[name] ?? ""}
-            />
-          ))}
-        </div>
-        <div className="mt-5 grid gap-3 border-t border-zinc-200 pt-4">
-          <h3 className="font-semibold">Thêm kịch bản</h3>
-          <Input label="Title" value={newScript.title} onChange={(value) => setNewScript({ ...newScript, title: value })} />
-          <Select label="Language" value={newScript.language} options={["VI", "EN"]} onChange={(value) => setNewScript({ ...newScript, language: value as "VI" | "EN" })} />
-          <Select label="Stage" value={newScript.stage} options={stages} onChange={(value) => setNewScript({ ...newScript, stage: value })} />
-          <Input label="Tags" value={newScript.tags} onChange={(value) => setNewScript({ ...newScript, tags: value })} />
-          <Textarea label="Body" value={newScript.body} onChange={(value) => setNewScript({ ...newScript, body: value })} />
-          <button
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700"
-            onClick={createScript}
-            type="button"
-          >
-            <Save className="h-4 w-4" />
-            Lưu kịch bản
-          </button>
-        </div>
-      </aside>
-
-      <div className="grid gap-3">
-        {scripts.map((script) => (
-          <article className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm" key={script.id}>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="font-semibold">{script.title}</h2>
-                <p className="mt-1 text-sm text-zinc-600">
-                  {script.language} · {script.stage} · {script.tags.join(", ") || "no-tags"}
-                </p>
-              </div>
-              <button
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-zinc-950 px-3 text-sm font-medium text-white hover:bg-zinc-800"
-                onClick={() => copyScript(script)}
-                type="button"
-              >
-                <Copy className="h-4 w-4" />
-                Copy
-              </button>
-            </div>
-            <p className="mt-3 whitespace-pre-wrap rounded-md bg-zinc-50 p-3 text-sm leading-6 text-zinc-700">
-              {renderScript(script)}
-            </p>
-          </article>
-        ))}
-      </div>
     </section>
   );
 }
@@ -636,7 +523,7 @@ function LinksPanel({ links, revokeLink }: { links: LinkDto[]; revokeLink: (id: 
       {links.map((link) => (
         <article className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm" key={link.id}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
+            <div className="min-w-0">
               <h2 className="font-semibold">
                 {link.kind} · {link.files.length} file
               </h2>
@@ -660,35 +547,6 @@ function LinksPanel({ links, revokeLink }: { links: LinkDto[]; revokeLink: (id: 
           </div>
         </article>
       ))}
-    </section>
-  );
-}
-
-function SafePanel({ createSafeCode, safeCode }: { createSafeCode: () => void; safeCode: string }) {
-  return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-semibold">Safe Mode máy khách</h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            Tạo mã 6 số, mở /safe trên máy khách, nhập mã để chỉ search/copy/tạo link tạm.
-          </p>
-        </div>
-        <button
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700"
-          onClick={createSafeCode}
-          type="button"
-        >
-          <KeyRound className="h-4 w-4" />
-          Tạo mã
-        </button>
-      </div>
-      {safeCode ? (
-        <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-5 text-center">
-          <p className="text-sm text-emerald-900">Mã Safe Mode</p>
-          <p className="mt-1 font-mono text-4xl font-semibold tracking-widest text-emerald-950">{safeCode}</p>
-        </div>
-      ) : null}
     </section>
   );
 }

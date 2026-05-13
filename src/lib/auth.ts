@@ -5,7 +5,7 @@ import { env, isGoogleAuthConfigured } from "@/lib/env";
 import { safeCompare, sha256 } from "@/lib/security";
 
 export type Actor = {
-  type: "admin" | "safe";
+  type: "admin";
   email?: string;
 };
 

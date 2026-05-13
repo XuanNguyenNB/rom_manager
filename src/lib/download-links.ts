@@ -38,7 +38,7 @@ export async function createDownloadLink(fileIds: string[], actorEmail?: string,
   await prisma.auditLog.create({
     data: {
       action: "LINK_CREATED",
-      actorType: actorEmail ? "admin" : "safe",
+      actorType: "admin",
       actorEmail,
       entityType: "DownloadLink",
       entityId: link.id,

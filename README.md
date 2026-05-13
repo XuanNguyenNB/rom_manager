@@ -1,6 +1,6 @@
 # ROM Manager
 
-Personal web app for ROM freelancers: catalog ROM/tool files from AList/Google Drive, search customer scripts, generate 7-day download links, and open a restricted Safe Mode on customer machines.
+Personal web app for ROM freelancers: catalog ROM/tool files from AList/Google Drive and generate customer download links.
 
 - Customer lookup: `/`
 - Admin dashboard: `/admin`
@@ -29,7 +29,7 @@ npm run db:migrate
 npm run db:seed
 ```
 
-The first migration enables `pg_trgm` and creates the tables for devices, files, scripts, download links, safe sessions, and audit logs.
+The first migration enables `pg_trgm` and creates the tables for devices, files, download links, safe sessions, audit logs, and legacy script tables.
 
 ## AList
 
@@ -50,17 +50,16 @@ ROM-Library/
 
 ```bash
 ALIST_INTERNAL_URL=http://alist:5244/_alist
-ALIST_PUBLIC_DOWNLOAD_BASE_URL=https://files.choimaytau.com/_raw
 ALIST_USERNAME=admin
 ALIST_PASSWORD=...
 ALIST_SCAN_ROOT=/ROM-Library
 ```
 
-`/_raw/d/...` is the public download-only route used after the app validates `/d/<token>`. AList is exposed below `/_alist/` with its native login, so set AList `site_url` to `https://files.choimaytau.com/_alist` and include the same `/_alist` base path in `ALIST_INTERNAL_URL`. Do not wrap this subpath with Nginx Basic Auth because the AList single-page app can repeatedly prompt for login when its API/static fetches are challenged by the proxy. If an extra perimeter is needed, put AList behind Cloudflare Access or a dedicated admin-only hostname.
+AList is exposed below `/_alist/` with its native login, so set AList `site_url` to `https://files.choimaytau.com/_alist` and include the same `/_alist` base path in `ALIST_INTERNAL_URL`. Do not wrap this subpath with Nginx Basic Auth because the AList single-page app can repeatedly prompt for login when its API/static fetches are challenged by the proxy. If an extra perimeter is needed, put AList behind Cloudflare Access or a dedicated admin-only hostname.
 
 `ALIST_SCAN_ROOT` must match the actual AList mount path. Use `/ROM-Library` if the Google Drive storage is mounted there, or `/Drive` if that is the mount path configured in AList.
 
-Download redirects are resolved through AList `/api/fs/get` first so the app uses AList's signed `raw_url` such as `/_alist/p/...?...sign=...`. `ALIST_PUBLIC_DOWNLOAD_BASE_URL` is only a fallback for drivers that do not return `raw_url`.
+Download redirects are resolved through AList `/api/fs/get`, so the app uses AList's signed `raw_url` such as `/_alist/p/...?...sign=...`. Hand-built links like `/_raw/d/...` are intentionally not used for Google Drive because they can miss AList's required `sign` parameter.
 
 ## VPS Deployment
 
@@ -93,16 +92,3 @@ GOOGLE_CLIENT_SECRET=...
 ADMIN_EMAILS=your-email@gmail.com
 ADMIN_PASSWORD=<strong admin password>
 ```
-
-## Import Scripts
-
-Use the app UI to create scripts one by one, or POST bulk text to `/api/import/scripts`.
-
-Supported line formats:
-
-```text
-title<TAB>language<TAB>stage<TAB>body<TAB>tag1,tag2
-title|body
-```
-
-Template variables use `{ten_khach}`, `{model}`, `{gia}`, `{thoi_gian}`, `{link}`.

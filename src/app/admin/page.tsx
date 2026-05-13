@@ -61,17 +61,6 @@ export default async function AdminPage() {
           files: link.files.map((item) => ({ file: serializeFile(item.file) })),
         })) satisfies LinkDto[]
       }
-      initialScripts={data.scripts.map((script) => ({
-        id: script.id,
-        title: script.title,
-        language: script.language,
-        brand: script.brand,
-        model: script.model,
-        stage: script.stage,
-        body: script.body,
-        variables: script.variables,
-        tags: script.tags,
-      }))}
     />
   );
 }

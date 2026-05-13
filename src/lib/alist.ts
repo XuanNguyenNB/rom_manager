@@ -45,26 +45,47 @@ function joinAListPath(parent: string, child: string) {
   return `${cleanParent}/${child}`.replace(/\/+/g, "/");
 }
 
-function encodeAListPath(path: string) {
-  return path
-    .split("/")
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
+function isAuthFailure(code: number, message = "") {
+  return code === 401 || code === 403 || /token|expire|auth|login/i.test(message);
 }
 
-async function parseAListResponse<T>(response: Response, context: string) {
-  const text = await response.text();
-
-  if (!response.ok) {
-    throw new Error(`${context} failed with status ${response.status}.`);
+function parseModifiedAt(value?: string) {
+  if (!value) {
+    return undefined;
   }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function toPublicUrl(value: string) {
+  if (/^https?:\/\//i.test(value)) {
+    return value;
+  }
+
+  if (value.startsWith("/")) {
+    return new URL(value, env.appUrl).toString();
+  }
+
+  return value;
+}
+
+async function readAListPayload<T>(response: Response, context: string) {
+  const text = await response.text();
+  let payload: AListResponse<T> | null = null;
 
   try {
-    return JSON.parse(text) as AListResponse<T>;
+    payload = JSON.parse(text) as AListResponse<T>;
   } catch {
-    const preview = text.trim().slice(0, 80);
+    const preview = text.trim().slice(0, 100);
     throw new Error(`${context} returned non-JSON response. Check ALIST_INTERNAL_URL/base path. Preview: ${preview}`);
   }
+
+  if (!response.ok) {
+    throw new Error(`${context} failed with status ${response.status}: ${payload.message}`);
+  }
+
+  return payload;
 }
 
 async function getAListToken() {
@@ -86,8 +107,8 @@ async function getAListToken() {
     cache: "no-store",
   });
 
-  const payload = await parseAListResponse<AListLoginData>(response, "AList login");
-  if (!payload.data?.token) {
+  const payload = await readAListPayload<AListLoginData>(response, "AList login");
+  if (payload.code !== 200 || !payload.data?.token) {
     throw new Error(`AList login failed: ${payload.message}`);
   }
 
@@ -95,7 +116,7 @@ async function getAListToken() {
   return cachedToken;
 }
 
-async function alistPost<T>(endpoint: string, body: Record<string, unknown>) {
+async function alistPost<T>(endpoint: string, body: Record<string, unknown>, allowRetry = true): Promise<T> {
   const token = await getAListToken();
   const response = await fetch(`${trimTrailingSlash(env.alistInternalUrl)}${endpoint}`, {
     method: "POST",
@@ -107,12 +128,17 @@ async function alistPost<T>(endpoint: string, body: Record<string, unknown>) {
     cache: "no-store",
   });
 
-  const payload = await parseAListResponse<T>(response, `AList request ${endpoint}`);
-  if (payload.code !== 200) {
-    throw new Error(`AList request ${endpoint} failed: ${payload.message}`);
+  const payload = await readAListPayload<T>(response, `AList request ${endpoint}`);
+  if (payload.code === 200) {
+    return payload.data;
   }
 
-  return payload.data;
+  if (allowRetry && isAuthFailure(payload.code, payload.message)) {
+    cachedToken = null;
+    return alistPost<T>(endpoint, body, false);
+  }
+
+  throw new Error(`AList request ${endpoint} failed: ${payload.message}`);
 }
 
 export async function listAListDirectory(path: string) {
@@ -127,14 +153,34 @@ export async function listAListDirectory(path: string) {
 }
 
 export async function scanAListTree(root = env.alistScanRoot) {
+  const scanRoot = root.startsWith("/") ? root : `/${root}`;
   const files: ScannedAListFile[] = [];
-  const stack = [root];
+  const stack = [scanRoot];
+  const visited = new Set<string>();
 
   while (stack.length > 0) {
     const current = stack.pop()!;
-    const entries = await listAListDirectory(current);
+    if (visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+
+    let entries: AListItem[];
+    try {
+      entries = await listAListDirectory(current);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown AList error.";
+      if (current === scanRoot) {
+        throw new Error(`AList scan root ${scanRoot} is not accessible: ${message}`);
+      }
+      throw new Error(`AList directory ${current} is not accessible: ${message}`);
+    }
 
     for (const entry of entries) {
+      if (!entry.name) {
+        continue;
+      }
+
       const alistPath = joinAListPath(current, entry.name);
 
       if (entry.is_dir) {
@@ -146,7 +192,7 @@ export async function scanAListTree(root = env.alistScanRoot) {
         alistPath,
         filename: entry.name,
         sizeBytes: typeof entry.size === "number" ? BigInt(entry.size) : undefined,
-        modifiedAt: entry.modified ? new Date(entry.modified) : undefined,
+        modifiedAt: parseModifiedAt(entry.modified),
       });
     }
   }
@@ -157,12 +203,8 @@ export async function scanAListTree(root = env.alistScanRoot) {
 export async function getAListDownloadUrl(path: string) {
   const data = await alistPost<AListGetData>("/api/fs/get", { path });
   if (data.raw_url) {
-    return data.raw_url;
+    return toPublicUrl(data.raw_url);
   }
 
-  if (env.alistPublicDownloadBaseUrl) {
-    return `${trimTrailingSlash(env.alistPublicDownloadBaseUrl)}/d${encodeAListPath(path)}`;
-  }
-
-  throw new Error("AList did not return a downloadable URL.");
+  throw new Error(`AList did not return a signed raw_url for ${path}. Check AList storage download settings.`);
 }

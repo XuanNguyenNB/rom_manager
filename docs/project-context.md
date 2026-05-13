@@ -13,8 +13,8 @@ This document records the working context from the initial planning and deployme
 - Current file library is about 2 TB. A typical file is around 8 GB.
 - The owner works alone, but often opens the site from a customer PC through UltraViewer.
 - Customers may receive a download link over social apps and download large files before the owner starts the ROM job.
-- Existing script snippets were split across Notepad files and Google Sheets.
-- The app must be usable from a phone for copying links and customer scripts.
+- Script snippets originally existed in Notepad and Google Sheets, but scripts were removed from the MVP to focus on file management.
+- The app must be usable from a phone for searching files and copying customer download links.
 
 ## Product Decisions
 
@@ -24,6 +24,7 @@ This document records the working context from the initial planning and deployme
 - AList is a sidecar for storage and direct download behavior, not the main app UI.
 - Uploading large files is done outside the app with Google Drive Desktop, rclone, or AList.
 - The app scans AList metadata and lets the owner classify files later.
+- MVP scope is file catalog, metadata classification, AList scanning, and customer download links only. Script library UI/API was removed from the active surface.
 - Do not store archive/extract passwords in this system.
 - Download links default to 7 days and can be revoked.
 - Multi-file packages use `/p/<token>` with separate buttons. Do not dynamically zip large ROM files through the app server.
@@ -44,12 +45,12 @@ This document records the working context from the initial planning and deployme
 
 ## Current Route Model
 
-- `/` -> public search/copy portal for customers and owner.
-- `/admin` -> authenticated dashboard for classification, scripts, scans, and link creation.
+- `/` -> public file lookup portal for customers and owner.
+- `/admin` -> authenticated dashboard for classification, scans, and link creation.
 - `/login` -> admin login.
 - `/d/<token>` -> validates a single-file download token, then redirects to the AList-backed download URL.
 - `/p/<token>` -> package page listing multiple file download buttons.
-- `/_raw/d/...` -> legacy/fallback Nginx download-only pass-through to AList `/d/...`.
+- `/_raw/d/...` -> legacy Nginx download route. The app should not generate this for Google Drive files.
 - `/_alist/` -> AList native UI.
 
 ## Auth Decisions
@@ -58,7 +59,7 @@ This document records the working context from the initial planning and deployme
 - Current allowlisted admin email: `whoiamtwo4@gmail.com`.
 - Local development can bypass admin auth with `DEV_AUTH_BYPASS=true`.
 - Public/customer lookup must remain readable without login.
-- Safe Mode with short sessions can remain as a separate optional restricted mode, but it should not block the public root page.
+- Safe Mode code flow is not part of the current MVP surface. Public/customer lookup remains readable without login.
 
 ## AList Decisions And Debug History
 
@@ -66,7 +67,8 @@ This document records the working context from the initial planning and deployme
 - AList `site_url` must include the subpath: `https://files.choimaytau.com/_alist`.
 - Production `ALIST_INTERNAL_URL` must include the same base path: `http://alist:5244/_alist`. If it is set to `http://alist:5244`, AList can return the SPA HTML for API calls and scans fail with `Unexpected token '<'`.
 - `ALIST_SCAN_ROOT` must match the actual AList mount path. The original plan was `/ROM-Library`; the first working Google Drive mount was `/Drive`.
-- Download URLs should come from AList `/api/fs/get` `raw_url` first. For Google Drive under the `/_alist` base path, hand-built URLs like `/_raw/d/Drive/file.txt` can return the AList SPA HTML instead of a file, or miss AList's required `sign` parameter.
+- Download URLs must come from AList `/api/fs/get` `raw_url`. For Google Drive under the `/_alist` base path, hand-built URLs like `/_raw/d/Drive/file.txt` can return the AList SPA HTML instead of a file, or miss AList's required `sign` parameter.
+- The AList client retries once with a fresh login token when AList reports token/auth/expiry errors. This avoids stale `ALIST_TOKEN` or cached token failures.
 - Do not wrap `/_alist/` with Nginx Basic Auth. AList is a single-page app, and Basic Auth on the subpath caused API/static requests to get `401`, which triggered repeated browser login prompts.
 - If extra protection is needed later, prefer Cloudflare Access or a dedicated admin-only hostname instead of Basic Auth on the AList subpath.
 - Previous issue: AList showed a blank page because the SPA assets were loaded without the `/_alist` base path. Setting `site_url` and proxying to the matching subpath fixed it.

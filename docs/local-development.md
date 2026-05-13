@@ -78,7 +78,7 @@ npm run local:services:down
 - `.env.local` is ignored by Git and is for local-only settings.
 - Prisma commands load `.env.local` first, then `.env`.
 - Production Docker still uses `.env` from the VPS.
-- Local download links use `ALIST_PUBLIC_DOWNLOAD_BASE_URL=http://localhost:5244`, so generated `/d/<token>` redirects to AList directly.
+- Download links are resolved through AList `/api/fs/get` and require a signed `raw_url`.
 
 ## When Local Is Not Enough
 

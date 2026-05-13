@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchCatalog } from "@/lib/catalog";
-import { serializeRomFile, serializeScript } from "@/lib/serializers";
+import { serializeRomFile } from "@/lib/serializers";
 
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q") ?? "";
@@ -8,6 +8,5 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     files: data.files.map(serializeRomFile),
-    scripts: data.scripts.map(serializeScript),
   });
 }

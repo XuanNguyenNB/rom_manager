@@ -34,45 +34,6 @@ const devices = [
   { brand: "Oppo", model: "Find N5", aliases: ["Oppo Find N5", "Find N5"] },
 ];
 
-const scripts = [
-  {
-    title: "Báo giá up ROM",
-    language: "VI" as const,
-    stage: "QUOTE" as const,
-    body:
-      "Dạ máy {model} em có thể hỗ trợ up ROM. Chi phí là {gia}, thời gian dự kiến {thoi_gian}. Trước khi làm anh/chị vui lòng sao lưu dữ liệu quan trọng giúp em.",
-    variables: ["model", "gia", "thoi_gian"],
-    tags: ["bao-gia", "rom"],
-  },
-  {
-    title: "Cảnh báo sao lưu dữ liệu",
-    language: "VI" as const,
-    stage: "WARNING" as const,
-    body:
-      "Lưu ý: quá trình up ROM có thể mất toàn bộ dữ liệu trong máy. Anh/chị xác nhận đã sao lưu ảnh, danh bạ, Zalo và tài khoản quan trọng trước khi em thao tác nhé.",
-    variables: [],
-    tags: ["canh-bao", "backup"],
-  },
-  {
-    title: "Send download link",
-    language: "EN" as const,
-    stage: "DOWNLOADING" as const,
-    body:
-      "Please download this file first: {link}. The file may be large, so keep the browser open until it finishes. I will continue the service after the download is complete.",
-    variables: ["link"],
-    tags: ["download", "customer"],
-  },
-  {
-    title: "Hoàn tất up ROM",
-    language: "VI" as const,
-    stage: "DONE" as const,
-    body:
-      "Máy {model} đã up ROM xong. Anh/chị kiểm tra giúp em sóng, Wi-Fi, camera, CH Play và tài khoản trước khi kết thúc phiên hỗ trợ nhé.",
-    variables: ["model"],
-    tags: ["hoan-tat"],
-  },
-];
-
 async function main() {
   for (const device of devices) {
     await prisma.device.upsert({
@@ -80,16 +41,6 @@ async function main() {
       update: device,
       create: device,
     });
-  }
-
-  for (const script of scripts) {
-    const existing = await prisma.scriptTemplate.findFirst({
-      where: { title: script.title, language: script.language },
-    });
-
-    if (!existing) {
-      await prisma.scriptTemplate.create({ data: script });
-    }
   }
 }
 

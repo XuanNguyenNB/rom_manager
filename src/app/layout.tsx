@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "ROM Manager",
-  description: "Personal ROM file catalog, customer download links, and script library.",
+  description: "Personal ROM file catalog and customer download links.",
 };
 
 export default function RootLayout({

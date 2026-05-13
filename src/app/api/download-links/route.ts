@@ -10,17 +10,13 @@ const linkSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const { actor, response } = await requireActor({ allowSafe: true });
+  const { actor, response } = await requireActor();
   if (response) {
     return response;
   }
 
   const payload = linkSchema.parse(await request.json());
-  const { token, link } = await createDownloadLink(
-    payload.fileIds,
-    actor?.type === "admin" ? actor.email : undefined,
-    payload.note,
-  );
+  const { token, link } = await createDownloadLink(payload.fileIds, actor?.email, payload.note);
 
   const path = link.kind === "FILE" ? `/d/${token}` : `/p/${token}`;
 

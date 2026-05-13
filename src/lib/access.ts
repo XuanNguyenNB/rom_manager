@@ -1,22 +1,17 @@
 import { NextResponse } from "next/server";
 import { getAdminActor } from "@/lib/auth";
-import { getSafeActor } from "@/lib/safe-session";
 
-export async function getActor({ allowSafe = false } = {}) {
+export async function getActor() {
   const admin = await getAdminActor();
   if (admin) {
     return admin;
   }
 
-  if (allowSafe) {
-    return getSafeActor();
-  }
-
   return null;
 }
 
-export async function requireActor({ allowSafe = false } = {}) {
-  const actor = await getActor({ allowSafe });
+export async function requireActor() {
+  const actor = await getActor();
 
   if (!actor) {
     return {
