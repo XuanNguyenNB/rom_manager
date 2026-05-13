@@ -60,6 +60,8 @@ ALIST_SCAN_ROOT=/ROM-Library
 
 `ALIST_SCAN_ROOT` must match the actual AList mount path. Use `/ROM-Library` if the Google Drive storage is mounted there, or `/Drive` if that is the mount path configured in AList.
 
+Download redirects are resolved through AList `/api/fs/get` first so the app uses AList's signed `raw_url` such as `/_alist/p/...?...sign=...`. `ALIST_PUBLIC_DOWNLOAD_BASE_URL` is only a fallback for drivers that do not return `raw_url`.
+
 ## VPS Deployment
 
 ```bash

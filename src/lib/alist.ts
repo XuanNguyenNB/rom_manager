@@ -155,14 +155,14 @@ export async function scanAListTree(root = env.alistScanRoot) {
 }
 
 export async function getAListDownloadUrl(path: string) {
-  if (env.alistPublicDownloadBaseUrl) {
-    return `${trimTrailingSlash(env.alistPublicDownloadBaseUrl)}/d${encodeAListPath(path)}`;
-  }
-
   const data = await alistPost<AListGetData>("/api/fs/get", { path });
   if (data.raw_url) {
     return data.raw_url;
   }
 
-  throw new Error("AList did not return a downloadable URL. Configure ALIST_PUBLIC_DOWNLOAD_BASE_URL.");
+  if (env.alistPublicDownloadBaseUrl) {
+    return `${trimTrailingSlash(env.alistPublicDownloadBaseUrl)}/d${encodeAListPath(path)}`;
+  }
+
+  throw new Error("AList did not return a downloadable URL.");
 }

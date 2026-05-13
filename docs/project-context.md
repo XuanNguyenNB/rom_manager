@@ -49,7 +49,7 @@ This document records the working context from the initial planning and deployme
 - `/login` -> admin login.
 - `/d/<token>` -> validates a single-file download token, then redirects to the AList-backed download URL.
 - `/p/<token>` -> package page listing multiple file download buttons.
-- `/_raw/d/...` -> Nginx download-only pass-through to AList `/d/...`.
+- `/_raw/d/...` -> legacy/fallback Nginx download-only pass-through to AList `/d/...`.
 - `/_alist/` -> AList native UI.
 
 ## Auth Decisions
@@ -66,6 +66,7 @@ This document records the working context from the initial planning and deployme
 - AList `site_url` must include the subpath: `https://files.choimaytau.com/_alist`.
 - Production `ALIST_INTERNAL_URL` must include the same base path: `http://alist:5244/_alist`. If it is set to `http://alist:5244`, AList can return the SPA HTML for API calls and scans fail with `Unexpected token '<'`.
 - `ALIST_SCAN_ROOT` must match the actual AList mount path. The original plan was `/ROM-Library`; the first working Google Drive mount was `/Drive`.
+- Download URLs should come from AList `/api/fs/get` `raw_url` first. For Google Drive under the `/_alist` base path, hand-built URLs like `/_raw/d/Drive/file.txt` can return the AList SPA HTML instead of a file, or miss AList's required `sign` parameter.
 - Do not wrap `/_alist/` with Nginx Basic Auth. AList is a single-page app, and Basic Auth on the subpath caused API/static requests to get `401`, which triggered repeated browser login prompts.
 - If extra protection is needed later, prefer Cloudflare Access or a dedicated admin-only hostname instead of Basic Auth on the AList subpath.
 - Previous issue: AList showed a blank page because the SPA assets were loaded without the `/_alist` base path. Setting `site_url` and proxying to the matching subpath fixed it.
