@@ -1,94 +1,64 @@
 # ROM Manager
 
-Personal web app for ROM freelancers: catalog ROM/tool files from AList/Google Drive and generate customer download links.
+Current MVP uses AList as the main firmware portal at `https://files.choimaytau.com`.
 
-- Customer lookup: `/`
-- Admin dashboard: `/admin`
-- Admin login: `/login`
+The earlier Next.js/PostgreSQL app is kept in this repository for rollback or a future phase with metadata, expiring customer links, and audit logs. It is not on the production request path for the current MVP.
 
-## Local Development
+## Production MVP
 
-```bash
-cp .env.local.example .env.local
-npm install
-npm run db:generate
-npm run local:services
-npm run local:alist:password
-npm run local:db
-npm run dev
-```
-
-Local development uses Docker for PostgreSQL and AList, then runs Next.js directly on `http://localhost:3000`. See `docs/local-development.md` for the full workflow. The project context and deployment decisions are recorded in `docs/project-context.md`.
-
-## Database
-
-Use PostgreSQL. After configuring `DATABASE_URL`:
-
-```bash
-npm run db:migrate
-npm run db:seed
-```
-
-The first migration enables `pg_trgm` and creates the tables for devices, files, download links, safe sessions, audit logs, and legacy script tables.
+- `/` -> AList public file browser.
+- Guest access -> read-only list/search/download.
+- Admin access -> native AList login.
+- Next.js app/PostgreSQL -> stopped on VPS after AList-only verification, volumes kept for rollback.
 
 ## AList
 
-1. Start AList and add Google Drive storage mounted at `/ROM-Library`.
-2. Recommended Drive layout:
+AList is the source of truth for public firmware/tool browsing.
+
+Recommended public root layout:
 
 ```text
-ROM-Library/
-  00_Inbox/
-  01_ROM/
-  02_Tools/
-  03_Drivers/
-  04_Bundles/
-  99_Archive/
+FIRMWARE/
+  LG/
+  Xiaomi/
+  OnePlus/
+  Oppo/
+TOOLFLASH/
+DRIVERS/
+GUIDE/
+INBOX_PRIVATE/
 ```
 
-3. Set these env vars:
+Use filenames that include model, region, Android version, and build number so AList search is useful without a custom database.
+
+Production AList settings:
 
 ```bash
-ALIST_INTERNAL_URL=http://alist:5244/_alist
-ALIST_USERNAME=admin
-ALIST_PASSWORD=...
-ALIST_SCAN_ROOT=/ROM-Library
+ALIST_SITE_URL=https://files.choimaytau.com
 ```
 
-AList is exposed below `/_alist/` with its native login, so set AList `site_url` to `https://files.choimaytau.com/_alist` and include the same `/_alist` base path in `ALIST_INTERNAL_URL`. Do not wrap this subpath with Nginx Basic Auth because the AList single-page app can repeatedly prompt for login when its API/static fetches are challenged by the proxy. If an extra perimeter is needed, put AList behind Cloudflare Access or a dedicated admin-only hostname.
+The root page can use an AList `readme.md`/meta readme to show service notes and contact instructions. Do not publish bank details in the MVP.
 
-`ALIST_SCAN_ROOT` must match the actual AList mount path. Use `/ROM-Library` if the Google Drive storage is mounted there, or `/Drive` if that is the mount path configured in AList.
+## Nginx
 
-Download redirects are resolved through AList `/api/fs/get`, so the app uses AList's signed `raw_url` such as `/_alist/p/...?...sign=...`. Hand-built links like `/_raw/d/...` are intentionally not used for Google Drive because they can miss AList's required `sign` parameter.
+`deploy/nginx-files.choimaytau.com.conf` routes the whole domain to AList on `127.0.0.1:5244` and uses long proxy timeouts with buffering disabled for large ROM downloads.
 
-## VPS Deployment
+Copy it to the VPS Nginx site and reload Nginx after validation:
 
 ```bash
-cp .env.example .env
-docker compose up -d postgres alist
-docker compose build app
-docker compose run --rm app npx prisma migrate deploy
-docker compose run --rm app npm run db:seed
-docker compose up -d
+sudo cp deploy/nginx-files.choimaytau.com.conf /etc/nginx/sites-available/files.choimaytau.com
+sudo nginx -t
+sudo systemctl reload nginx
 ```
 
-Copy `deploy/nginx-files.choimaytau.com.conf` into Nginx sites, adjust SSL with Certbot, then reload Nginx.
+## Rollback
 
-## Google Login
+If the Next.js app is needed again:
 
-Create a Google OAuth Web Client with callback:
-
-```text
-https://files.choimaytau.com/api/auth/callback/google
-```
-
-Set:
+1. Revert the Nginx config to route `/` to `127.0.0.1:3000`.
+2. Restore AList `site_url` to `https://files.choimaytau.com/_alist`.
+3. Start the app and postgres services:
 
 ```bash
-NEXTAUTH_URL=https://files.choimaytau.com
-NEXTAUTH_SECRET=<random secret>
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-ADMIN_EMAILS=your-email@gmail.com
-ADMIN_PASSWORD=<strong admin password>
+docker compose up -d app postgres alist
 ```

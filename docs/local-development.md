@@ -1,13 +1,13 @@
 # Local Development
 
-Use this workflow to test most app changes locally before deploying to the VPS.
+Use this workflow only when working on the legacy Next.js app. The current production MVP uses AList directly at `https://files.choimaytau.com`.
 
 ## What Runs Locally
 
 - Next.js runs on the host machine at `http://localhost:3000`.
 - PostgreSQL runs in Docker at `127.0.0.1:5433`.
 - AList runs in Docker at `http://localhost:5244`.
-- Local AList is not mounted under `/_alist/`; that subpath is production Nginx behavior.
+- Local AList is not mounted under `/_alist/`. Production AList-only mode also uses root `/`.
 
 Prerequisite: Docker Desktop must be installed and the `docker` command must be available in the terminal.
 
@@ -86,6 +86,5 @@ Test on the VPS when changing:
 
 - Nginx routes.
 - Cloudflare behavior.
-- AList production subpath `/_alist/`.
 - Real Google Drive mounts.
 - Real large-file download behavior.
